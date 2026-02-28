@@ -1,0 +1,36 @@
+# ── Core LLM ─────────────────────────────────────────────────────────────────
+anthropic>=0.40.0
+
+# ── Web framework (each agent / MCP server is a FastAPI service) ──────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.12
+
+# ── A2A inter-agent HTTP calls ────────────────────────────────────────────────
+httpx>=0.28.0
+
+# ── Data validation ───────────────────────────────────────────────────────────
+pydantic>=2.10.0
+
+# ── Config ────────────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+
+# ── Vector memory (Memory MCP server) ────────────────────────────────────────
+chromadb>=0.5.0
+sentence-transformers>=3.3.0       # local embeddings (swap for OpenAI/Voyage in prod)
+
+# ── Job board APIs ────────────────────────────────────────────────────────────
+tavily-python>=0.5.0               # web search + page extraction fallback
+
+# ── PDF extraction (Document MCP server) ─────────────────────────────────────
+PyMuPDF>=1.24.0                    # fitz — fast native PDF text extraction
+
+# ── Streamlit UI ──────────────────────────────────────────────────────────────
+streamlit>=1.41.0
+
+# ── Optional: Redis for shared blackboard state across services ───────────────
+# redis>=5.2.0
+
+# ── Optional: production PDF generation ──────────────────────────────────────
+# weasyprint>=62.0
+# jinja2>=3.1.0
