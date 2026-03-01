@@ -1,12 +1,7 @@
-# Job Matcher — Multi-Agent Architecture
+Job Matcher — Multi-Agent Architecture
+Stack: Python · FastAPI · Claude (Anthropic) · A2A Protocol · MCP Servers · ChromaDB · Docker Compose
 
-> **Stack:** Python · FastAPI · Claude (Anthropic) · A2A Protocol · MCP Servers · ChromaDB · Docker Compose
-
----
-
-## System Overview
-
-```
+System Overview
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                         USER INPUT                                       │
 │  LinkedIn URL  ──┐                                                       │
@@ -36,42 +31,25 @@
                                                               │
                                                               ▼
                                                    JobMatcherPipelineResult
-```
+Agent Inventory
+Agent	Port	Responsibility	Key A2A Skill
+Orchestrator	8000	Pipeline coordinator; REST API for UI	run_pipeline
+Profile Parser	8001	Parse LinkedIn URL, resume PDF/text → CandidateProfile	parse_linkedin_profile
+Job Discovery	8002	Fan-out to Indeed, Glassdoor, LinkedIn Jobs	discover_jobs
+Job Matcher	8003	Score + rank jobs (skills/XP/location/salary)	score_jobs
+Resume Customizer	8004	Rewrite resume for a specific job, ATS score	customize_resume
+Cover Letter	8005	Generate tailored cover letter	generate_cover_letter
+Gap Analysis	8006	Identify skill/XP gaps + learning roadmap	analyze_gaps
+Interview Prep	8007	Questions, STAR prompts, company research	prepare_interview
+MCP Server Inventory
+Server	Port	Tools Exposed
+LinkedIn MCP	9001	fetch_linkedin_profile, parse_profile_text, search_linkedin_people
+Job Boards MCP	9002	search_indeed, search_glassdoor, search_linkedin_jobs, get_job_details
+Document MCP	9003	extract_text_from_pdf, render_resume_markdown, render_cover_letter, diff_resumes
+Memory MCP	9004	upsert_profile, upsert_job, search_similar_jobs, recall_profile, recall_job
+A2A Protocol
+Each agent is a self-contained FastAPI service that implements the Google A2A spec.
 
----
-
-## Agent Inventory
-
-| Agent | Port | Responsibility | Key A2A Skill |
-|---|---|---|---|
-| **Orchestrator** | 8000 | Pipeline coordinator; REST API for UI | `run_pipeline` |
-| **Profile Parser** | 8001 | Parse LinkedIn URL, resume PDF/text → `CandidateProfile` | `parse_linkedin_profile` |
-| **Job Discovery** | 8002 | Fan-out to Indeed, Glassdoor, LinkedIn Jobs | `discover_jobs` |
-| **Job Matcher** | 8003 | Score + rank jobs (skills/XP/location/salary) | `score_jobs` |
-| **Resume Customizer** | 8004 | Rewrite resume for a specific job, ATS score | `customize_resume` |
-| **Cover Letter** | 8005 | Generate tailored cover letter | `generate_cover_letter` |
-| **Gap Analysis** | 8006 | Identify skill/XP gaps + learning roadmap | `analyze_gaps` |
-| **Interview Prep** | 8007 | Questions, STAR prompts, company research | `prepare_interview` |
-
----
-
-## MCP Server Inventory
-
-| Server | Port | Tools Exposed |
-|---|---|---|
-| **LinkedIn MCP** | 9001 | `fetch_linkedin_profile`, `parse_profile_text`, `search_linkedin_people` |
-| **Job Boards MCP** | 9002 | `search_indeed`, `search_glassdoor`, `search_linkedin_jobs`, `get_job_details` |
-| **Document MCP** | 9003 | `extract_text_from_pdf`, `render_resume_markdown`, `render_cover_letter`, `diff_resumes` |
-| **Memory MCP** | 9004 | `upsert_profile`, `upsert_job`, `search_similar_jobs`, `recall_profile`, `recall_job` |
-
----
-
-## A2A Protocol
-
-Each agent is a self-contained FastAPI service that implements the
-[Google A2A spec](https://google.github.io/A2A/).
-
-```
 GET  /.well-known/agent.json   →  AgentCard (name, skills, capabilities)
 POST /rpc                      →  JSON-RPC 2.0 dispatcher
 
@@ -79,10 +57,8 @@ Methods:
   tasks/send    — submit a new task
   tasks/get     — poll task status
   tasks/cancel  — cancel a running task
-```
+Wire format (tasks/send):
 
-**Wire format (tasks/send):**
-```json
 {
   "jsonrpc": "2.0",
   "method": "tasks/send",
@@ -95,29 +71,17 @@ Methods:
     }
   }
 }
-```
+Task lifecycle: submitted → working → completed | failed
 
-Task lifecycle:  `submitted → working → completed | failed`
+MCP Protocol
+Each MCP server speaks Streamable HTTP (JSON-RPC over POST to /).
 
----
-
-## MCP Protocol
-
-Each MCP server speaks **Streamable HTTP** (JSON-RPC over POST to `/`).
-
-```
 POST /   { "method": "initialize" }            →  server capabilities
 POST /   { "method": "tools/list" }            →  tool definitions
 POST /   { "method": "tools/call",
            "params": { "name": "...", "arguments": {...} } }  →  tool result
 GET  /health                                   →  liveness probe
-```
-
----
-
-## Data Flow (step by step)
-
-```
+Data Flow (step by step)
 1. User submits LinkedIn URL + optional resume to Orchestrator (POST /run)
 
 2. Orchestrator → [A2A] → Profile Parser
@@ -148,13 +112,7 @@ GET  /health                                   →  liveness probe
    Interview Prep → InterviewPrepKit (8+ questions, STAR prompts, negotiation tips)
 
 7. Orchestrator aggregates and returns JobMatcherPipelineResult
-```
-
----
-
-## Scoring Model
-
-```
+Scoring Model
 Skills Match (40%)
   = (matched_required_skills / total_required) × 100
     + bonus for preferred skills (up to +15)
@@ -172,13 +130,7 @@ Salary Match (10%)
   = 100 if job_max >= candidate_expectation
   = (job_max / candidate_expectation) × 100 if below
   = 100 if no salary data (neutral)
-```
-
----
-
-## Project Structure
-
-```
+Project Structure
 job_matcher/
 ├── a2a/
 │   ├── protocol.py          AgentCard, Task, Message, Part, JSON-RPC types
@@ -209,24 +161,13 @@ job_matcher/
 ├── requirements.txt         Python dependencies
 ├── Dockerfile               Container image (all agents share one image)
 └── docker-compose.yml       Spins up all 12 services
-```
-
----
-
-## API Keys Needed
-
-| Key | Purpose | Free tier? |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | All LLM calls (Claude) | No — pay per token |
-| `TAVILY_API_KEY` | Web search fallback + company research | Yes (1k req/mo) |
-| `RAPIDAPI_KEY` | JSearch API (Indeed + LinkedIn + Glassdoor) | Yes (200 req/mo) |
-| `SERPAPI_KEY` | Alternative job search | Yes (100 req/mo) |
-
----
-
-## Quick Start
-
-```bash
+API Keys Needed
+Key	Purpose	Free tier?
+ANTHROPIC_API_KEY	All LLM calls (Claude)	No — pay per token
+TAVILY_API_KEY	Web search fallback + company research	Yes (1k req/mo)
+RAPIDAPI_KEY	JSearch API (Indeed + LinkedIn + Glassdoor)	Yes (200 req/mo)
+SERPAPI_KEY	Alternative job search	Yes (100 req/mo)
+Quick Start
 # 1. Install deps
 cd job_matcher
 pip install -r requirements.txt
@@ -266,31 +207,27 @@ curl -X POST http://localhost:8000/run \
 
 # 5. Discover registered agents
 curl http://localhost:8000/agents
-```
+Extending the System
+Add a new specialist agent:
 
----
+Create agents/my_agent/agent.py subclassing BaseA2AAgent
+Implement agent_card() and handle_skill()
+Add its URL to shared/config.py → AGENT_URLS
+Call it from the Orchestrator with self._a2a("my_agent", "my_skill", {...})
+Add a service block to docker-compose.yml
+Add a new MCP tool:
 
-## Extending the System
+Add the tool definition to the server's TOOLS list
+Implement the async function
+Register it in TOOL_MAP
+Agents call it via httpx.AsyncClient POST to the MCP server
+Swap the job board backend:
 
-**Add a new specialist agent:**
-1. Create `agents/my_agent/agent.py` subclassing `BaseA2AAgent`
-2. Implement `agent_card()` and `handle_skill()`
-3. Add its URL to `shared/config.py → AGENT_URLS`
-4. Call it from the Orchestrator with `self._a2a("my_agent", "my_skill", {...})`
-5. Add a service block to `docker-compose.yml`
+Set RAPIDAPI_KEY for JSearch (covers Indeed + LinkedIn + Glassdoor natively)
+Or implement a Proxycurl adapter in job_boards_mcp/server.py
+Scale to production:
 
-**Add a new MCP tool:**
-1. Add the tool definition to the server's `TOOLS` list
-2. Implement the async function
-3. Register it in `TOOL_MAP`
-4. Agents call it via `httpx.AsyncClient` POST to the MCP server
-
-**Swap the job board backend:**
-- Set `RAPIDAPI_KEY` for JSearch (covers Indeed + LinkedIn + Glassdoor natively)
-- Or implement a Proxycurl adapter in `job_boards_mcp/server.py`
-
-**Scale to production:**
-- Replace in-process ChromaDB with Pinecone or Weaviate
-- Add Redis for shared task state between Orchestrator instances
-- Deploy each agent as a separate Kubernetes Deployment
-- Add Prometheus metrics endpoint (`/metrics`) to each agent
+Replace in-process ChromaDB with Pinecone or Weaviate
+Add Redis for shared task state between Orchestrator instances
+Deploy each agent as a separate Kubernetes Deployment
+Add Prometheus metrics endpoint (/metrics) to each agent
